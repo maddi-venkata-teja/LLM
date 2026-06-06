@@ -1,9 +1,11 @@
 import streamlit as st
 import json
 import torch
+import os
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 from peft import PeftModel
 
+# Configure high-fidelity visual layout parameters
 st.set_page_config(
     page_title="DSA Architecture Engine",
     page_icon="⚡",
@@ -11,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Dark industrial styling injection
+# Dark industrial theme injection
 st.markdown("""
     <style>
     .stApp { background-color: #0b0f19; color: #f8fafc; }
@@ -28,16 +30,28 @@ st.markdown("""
 
 @st.cache_resource
 def load_application_assets():
+    # Parse core localized DSA schemas safely
     with open("./dsa.json", 'r') as file:
         data = json.load(file)
     comp_map = {c["name"].lower(): c for c in data.get("dsa_concepts", [])}
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    tokenizer = AutoTokenizer.from_pretrained("./fine_tuned_dsa_model")
     
-    base_model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-base")
-    model = PeftModel.from_pretrained(base_model, "./fine_tuned_dsa_model").to(device)
-    
+    # CRITICAL CLOUD CHECK: Check if large model weights are available locally or if we should fallback
+    if os.path.exists("./fine_tuned_dsa_model"):
+        tokenizer = AutoTokenizer.from_pretrained("./fine_tuned_dsa_model")
+        base_model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-base")
+        model = PeftModel.from_pretrained(base_model, "./fine_tuned_dsa_model")
+        
+        if device == "cpu":
+            model = model.to(torch.float32) # Standardize data weights on generic CPU containers
+        else:
+            model = model.to(device)
+    else:
+        # Production Cloud Fallback: Load base models natively if heavy binaries aren't pushed to git
+        tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-base")
+        model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-base").to(device)
+        
     return comp_map, tokenizer, model, device
 
 COMPONENTS_MAP, tokenizer, model, device = load_application_assets()
@@ -136,6 +150,7 @@ def process_pipeline(user_query):
     </div>
     """
 
+# Web application master layout introduction headers
 st.markdown(
     "<div style='text-align: center; padding: 10px 0; color: white;'>"
     "<h1>⚡ DSA High-Fidelity Analytics Engine</h1>"
@@ -146,12 +161,12 @@ st.markdown(
 
 col1, col2 = st.columns([4, 6], gap="large")
 
-# FIX 1: Initialize the session state variable safely under an independent namespace
+# Initialize state parameter values safely without key collisions
 if "current_user_query" not in st.session_state:
     st.session_state.current_user_query = "What are the operational execution rules of a Stack structure?"
 
 with col1:
-    # FIX 2: Bind the input box value directly to our dynamic state tracking variable
+    # Set continuous component state tracking parameter maps
     input_box = st.text_input(
         label="Enter DSA Concept Query",
         value=st.session_state.current_user_query,
@@ -160,18 +175,15 @@ with col1:
     submit_btn = st.button("Execute Analysis Run")
     
     st.markdown("<p style='color:#64748b; font-weight:bold; margin-top:15px; margin-bottom:5px;'>Suggested System Queries:</p>", unsafe_allow_html=True)
-    
-    # FIX 3: Clicking these will now accurately rewrite the text box inputs and display reports instantly
     if st.button("💡 Explain the concept of an Array structural schema."):
         st.session_state.current_user_query = "Explain the concept of an Array structural schema."
         st.rerun()
-        
     if st.button("💡 Show details for an unknown data concept."):
         st.session_state.current_user_query = "What is the time complexity of a Red-Black Tree architecture?"
         st.rerun()
 
 with col2:
-    # Force process current interactive fields
+    # Track the active input execution trace safely
     active_query = input_box.strip() if input_box else st.session_state.current_user_query
     
     if submit_btn or (st.session_state.current_user_query != "What are the operational execution rules of a Stack structure?"):
