@@ -125,9 +125,8 @@ def run_fine_tuning(dsa_data):
         logging_steps=1,
         learning_rate=3e-4,
         save_strategy="no",
-        use_cpu=True,                  
-        no_cuda=True,                  
-        remove_unused_columns=True
+        use_cpu=True,                  # Safe CPU execution flag mapping
+        remove_unused_columns=True     # REMOVED: deprecated no_cuda flag
     )
 
     trainer = Trainer(
@@ -144,7 +143,7 @@ def run_fine_tuning(dsa_data):
     print(f"✅ Adapters written successfully to directory: {FINETUNED_DIR}")
 
 # ==============================================================================
-# STEP 3: DYNAMIC STREAMLIT CODE GENERATION BLOCK (FIXED PARAMETER CODES)
+# STEP 3: DYNAMIC STREAMLIT CODE GENERATION BLOCK
 # ==============================================================================
 def generate_streamlit_app():
     print(f"🛠️ Exporting frontend structural configurations directly into {APP_FILE}...")
@@ -183,12 +182,16 @@ def load_application_assets():
         data = json.load(file)
     comp_map = {{c["name"].lower(): c for c in data.get("dsa_concepts", [])}}
     
+    # Safe multi-platform hardware execution mapping layer
     device = "cuda" if torch.cuda.is_available() else "cpu"
     tokenizer = AutoTokenizer.from_pretrained("{FINETUNED_DIR}")
-    
     base_model = AutoModelForSeq2SeqLM.from_pretrained("{MODEL_NAME}")
-    model = PeftModel.from_pretrained(base_model, "{FINETUNED_DIR}").to(device)
     
+    if device == "cpu":
+        model = PeftModel.from_pretrained(base_model, "{FINETUNED_DIR}", torch_dtype=torch.float32, device_map="cpu")
+    else:
+        model = PeftModel.from_pretrained(base_model, "{FINETUNED_DIR}").to(device)
+        
     return comp_map, tokenizer, model, device
 
 COMPONENTS_MAP, tokenizer, model, device = load_application_assets()
@@ -212,7 +215,7 @@ def process_pipeline(user_query):
         <div style='background-color: #2d1b24; border-left: 4px solid #f43f5e; padding: 15px; border-radius: 4px; margin-top:10px;'>
             <h4 style='color: #f43f5e; margin: 0 0 5px 0;'>⚠️ Concept Query Routing Alert</h4>
             <p style='margin: 0; color: #fda4af; font-size: 14px;'>The engine did not find a direct structural match in your dsa.json schemas for this question. Here is a fine-tuned adapter generation response:</p>
-            <p style='margin: 10px 0 0 0; font-style: italic; color: #fff;'>"{{bot_response}}"</p>
+            <p style='margin: 10px 0 0 0; font-style: italic; color: #fff;'>\\"{{bot_response}}\\"</p>
         </div>
         """
 
@@ -297,26 +300,30 @@ st.markdown(
 
 col1, col2 = st.columns([4, 6], gap="large")
 
+if "current_user_query" not in st.session_state:
+    st.session_state.current_user_query = "What are the operational execution rules of a Stack structure?"
+
 with col1:
     input_box = st.text_input(
         label="Enter DSA Concept Query",
-        value="What are the operational execution rules of a Stack structure?",
-        key="query_input"
+        value=st.session_state.current_user_query,
+        key="unique_query_input_field"
     )
     submit_btn = st.button("Execute Analysis Run")
     
-    st.markdown("<p style='color:#64748b; font-weight:bold; margin-top:15px; margin-bottom:5px;'>Suggested System Queries:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#64748b; font-weight:bold; margin-top:15px; margin-bottom:5px;'>Suggested System Queries:</p>", unsafe_allowed_html=True)
     if st.button("💡 Explain the concept of an Array structural schema."):
-        st.session_state.query_input = "Explain the concept of an Array structural schema."
+        st.session_state.current_user_query = "Explain the concept of an Array structural schema."
         st.rerun()
     if st.button("💡 Show details for an unknown data concept."):
-        st.session_state.query_input = "What is the time complexity of a Red-Black Tree architecture?"
+        st.session_state.current_user_query = "What is the time complexity of a Red-Black Tree architecture?"
         st.rerun()
 
 with col2:
-    if submit_btn and input_box:
+    active_query = input_box.strip() if input_box else st.session_state.current_user_query
+    if submit_btn or (st.session_state.current_user_query != "What are the operational execution rules of a Stack structure?"):
         with st.spinner("Executing instruction trace pipeline..."):
-            report_html = process_pipeline(input_box)
+            report_html = process_pipeline(active_query)
             st.markdown(report_html, unsafe_allow_html=True)
     else:
         st.markdown(
@@ -340,5 +347,4 @@ if __name__ == "__main__":
     generate_streamlit_app()
     
     print("🌐 Launching local production Streamlit microservice layer...")
-    # FIX: Corrected typo 'streaml it' to 'streamlit'
     subprocess.run([sys.executable, "-m", "streamlit", "run", APP_FILE])
