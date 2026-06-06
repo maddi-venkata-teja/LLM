@@ -1,0 +1,3 @@
+bqcx-819279619210-qptk@gcp-sa-bigquery-condel.iam.gserviceaccount.com
+
+819279619210
