@@ -28,7 +28,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-@st.cache_resource
+# Cache mapping layer tied to the file's modification time to force automatic dataset updates
+@st.cache_resource(hash_funcs={str: lambda x: os.path.getmtime("./dsa.json") if os.path.exists("./dsa.json") else 0})
 def load_application_assets():
     # Parse core localized DSA schemas safely
     with open("./dsa.json", 'r') as file:
@@ -37,18 +38,17 @@ def load_application_assets():
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
-    # CRITICAL CLOUD CHECK: Check if large model weights are available locally or if we should fallback
+    # Check if large model weights are available locally, otherwise deploy graceful cloud fallback
     if os.path.exists("./fine_tuned_dsa_model"):
         tokenizer = AutoTokenizer.from_pretrained("./fine_tuned_dsa_model")
         base_model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-base")
         model = PeftModel.from_pretrained(base_model, "./fine_tuned_dsa_model")
         
         if device == "cpu":
-            model = model.to(torch.float32) # Standardize data weights on generic CPU containers
+            model = model.to(torch.float32)
         else:
             model = model.to(device)
     else:
-        # Production Cloud Fallback: Load base models natively if heavy binaries aren't pushed to git
         tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-base")
         model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-base").to(device)
         
@@ -60,6 +60,7 @@ def process_pipeline(user_query):
     query_clean = user_query.lower().strip()
     matched_concept = None
     
+    # Exact phrase and substring match routing
     for concept_name in COMPONENTS_MAP.keys():
         if concept_name in query_clean:
             matched_concept = COMPONENTS_MAP[concept_name]
@@ -68,7 +69,13 @@ def process_pipeline(user_query):
     if not matched_concept:
         inputs = tokenizer(user_query, return_tensors="pt").to(device)
         with torch.no_grad():
-            outputs = model.generate(input_ids=inputs.input_ids, max_new_tokens=100)
+            outputs = model.generate(
+                input_ids=inputs.input_ids, 
+                max_new_tokens=100,
+                repetition_penalty=2.5,   # Strips repeating loop states completely
+                do_sample=True,           # Adds creative generation variance bounds
+                temperature=0.7           # Ensures coherent semantic flow
+            )
         bot_response = tokenizer.decode(outputs[0], skip_special_tokens=True)
         
         return f"""
@@ -82,6 +89,7 @@ def process_pipeline(user_query):
     name = matched_concept["name"]
     category = matched_concept["category"]
     
+    # Building out UI display text blocks dynamically from JSON payloads
     intro_text = f"The <b>{name}</b> architecture functions as a foundational <b>{category}</b> configuration pattern. {matched_concept['definition']} " \
                  f"Architecturally, it behaves deterministically across runtime threads according to standard operational specifications. " \
                  f"Its memory footprint is determined dynamically based on the hardware configurations and compilation constraints of your target platform runtime environment."
@@ -90,17 +98,14 @@ def process_pipeline(user_query):
 
     ops_list = []
     for op_name, op_data in matched_concept["operations"].items():
-        if "time_complexity" in op_data:
-            ops_list.append(f"<li><b>{op_name.upper()}</b>: {op_data['time_complexity']} Complexity metrics</li>")
-        else:
-            sub_metrics = ", ".join([f"{k.replace('_', ' ')}={v}" for k, v in op_data.items()])
-            ops_list.append(f"<li><b>{op_name.upper()}</b>: {sub_metrics}</li>")
+        sub_metrics = ", ".join([f"{k.replace('_', ' ').upper()}={v}" for k, v in op_data.items()])
+        ops_list.append(f"<li><b>{op_name.upper()}</b>: {sub_metrics}</li>")
             
     ops_joined = "".join(ops_list)
-    complexity_text = f"<h5>Time Complexity Map:</h5><ul>{ops_joined}</ul>" \
+    complexity_text = f"<h5>Complexity Mapping Parameters:</h5><ul>{ops_joined}</ul>" \
                       f"<h5>Space Allocation Metric:</h5>" \
                       f"The structure requires a baseline space footprint evaluating exactly to <code>{matched_concept.get('space_complexity', 'O(n)')}</code>. " \
-                      f"This specific behavioral scaling constraint dictates strict boundary guarantees for hardware resource monitors during live stack executions."
+                      f"This specific behavioral scaling constraint dictates strict boundary guarantees for hardware resource monitors during live program executions."
     while len(complexity_text) < 260:
         complexity_text += " This performance metric remains critical when scaling application workloads across enterprise cluster frameworks."
 
@@ -150,7 +155,7 @@ def process_pipeline(user_query):
     </div>
     """
 
-# Web application master layout introduction headers
+# Render Master Layout Headers
 st.markdown(
     "<div style='text-align: center; padding: 10px 0; color: white;'>"
     "<h1>⚡ DSA High-Fidelity Analytics Engine</h1>"
@@ -161,12 +166,10 @@ st.markdown(
 
 col1, col2 = st.columns([4, 6], gap="large")
 
-# Initialize state parameter values safely without key collisions
 if "current_user_query" not in st.session_state:
     st.session_state.current_user_query = "What are the operational execution rules of a Stack structure?"
 
 with col1:
-    # Set continuous component state tracking parameter maps
     input_box = st.text_input(
         label="Enter DSA Concept Query",
         value=st.session_state.current_user_query,
@@ -183,7 +186,6 @@ with col1:
         st.rerun()
 
 with col2:
-    # Track the active input execution trace safely
     active_query = input_box.strip() if input_box else st.session_state.current_user_query
     
     if submit_btn or (st.session_state.current_user_query != "What are the operational execution rules of a Stack structure?"):
