@@ -96,10 +96,15 @@ def process_pipeline(user_query):
     while len(intro_text) < 260:
         intro_text += " This architecture ensures system state preservation during processing cycles and optimizes standard pipeline routing workflows."
 
+    # Parse both simple or deeply nested dataset properties correctly
     ops_list = []
     for op_name, op_data in matched_concept["operations"].items():
-        sub_metrics = ", ".join([f"{k.replace('_', ' ').upper()}={v}" for k, v in op_data.items()])
-        ops_list.append(f"<li><b>{op_name.upper()}</b>: {sub_metrics}</li>")
+        if isinstance(op_data, dict):
+            for sub_key, complexity_val in op_data.items():
+                clean_label = f"{op_name.upper()} ({sub_key.replace('_', ' ').upper()})"
+                ops_list.append(f"<li><b>{clean_label}</b>: <code>{complexity_val}</code></li>")
+        else:
+            ops_list.append(f"<li><b>{op_name.upper()}</b>: <code>{op_data}</code></li>")
             
     ops_joined = "".join(ops_list)
     complexity_text = f"<h5>Complexity Mapping Parameters:</h5><ul>{ops_joined}</ul>" \
