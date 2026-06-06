@@ -11,6 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Dark industrial styling injection
 st.markdown("""
     <style>
     .stApp { background-color: #0b0f19; color: #f8fafc; }
@@ -145,26 +146,37 @@ st.markdown(
 
 col1, col2 = st.columns([4, 6], gap="large")
 
+# FIX 1: Initialize the session state variable safely under an independent namespace
+if "current_user_query" not in st.session_state:
+    st.session_state.current_user_query = "What are the operational execution rules of a Stack structure?"
+
 with col1:
+    # FIX 2: Bind the input box value directly to our dynamic state tracking variable
     input_box = st.text_input(
         label="Enter DSA Concept Query",
-        value="What are the operational execution rules of a Stack structure?",
-        key="query_input"
+        value=st.session_state.current_user_query,
+        key="unique_query_input_field"
     )
     submit_btn = st.button("Execute Analysis Run")
     
     st.markdown("<p style='color:#64748b; font-weight:bold; margin-top:15px; margin-bottom:5px;'>Suggested System Queries:</p>", unsafe_allow_html=True)
+    
+    # FIX 3: Clicking these will now accurately rewrite the text box inputs and display reports instantly
     if st.button("💡 Explain the concept of an Array structural schema."):
-        st.session_state.query_input = "Explain the concept of an Array structural schema."
+        st.session_state.current_user_query = "Explain the concept of an Array structural schema."
         st.rerun()
+        
     if st.button("💡 Show details for an unknown data concept."):
-        st.session_state.query_input = "What is the time complexity of a Red-Black Tree architecture?"
+        st.session_state.current_user_query = "What is the time complexity of a Red-Black Tree architecture?"
         st.rerun()
 
 with col2:
-    if submit_btn and input_box:
+    # Force process current interactive fields
+    active_query = input_box.strip() if input_box else st.session_state.current_user_query
+    
+    if submit_btn or (st.session_state.current_user_query != "What are the operational execution rules of a Stack structure?"):
         with st.spinner("Executing instruction trace pipeline..."):
-            report_html = process_pipeline(input_box)
+            report_html = process_pipeline(active_query)
             st.markdown(report_html, unsafe_allow_html=True)
     else:
         st.markdown(
